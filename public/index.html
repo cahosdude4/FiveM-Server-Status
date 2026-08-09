@@ -51,18 +51,8 @@
       border-top: 1px solid #2a3a2a;
     }
 
-    .lcd-label {
-      color: #7ecb7e;
-      font-size: 18px;
-      letter-spacing: 0.05em;
-    }
-
-    .lcd-value {
-      color: #9eff9e;
-      font-size: 18px;
-      font-weight: bold;
-      letter-spacing: 0.1em;
-    }
+    .lcd-label { color: #7ecb7e; font-size: 18px; letter-spacing: 0.05em; }
+    .lcd-value { color: #9eff9e; font-size: 18px; font-weight: bold; letter-spacing: 0.1em; }
 
     /* Info-Karten */
     .cards {
@@ -80,65 +70,80 @@
       padding: 14px 16px;
     }
 
-    .card-label {
-      font-size: 11px;
+    .card-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+    .card-value { font-size: 26px; font-weight: bold; color: #eee; }
+    .card-sub { font-size: 12px; color: #555; margin-top: 4px; }
+
+    .progress { height: 3px; background: #2a2a2a; border-radius: 2px; margin-top: 10px; overflow: hidden; }
+    .progress-fill { height: 100%; background: #7ecb7e; border-radius: 2px; transition: width 1s linear; }
+
+    /* Spieler-Tabelle */
+    .table-wrap {
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .table-title {
+      font-size: 12px;
       color: #666;
       text-transform: uppercase;
       letter-spacing: 0.1em;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
 
-    .card-value {
-      font-size: 26px;
-      font-weight: bold;
-      color: #eee;
-    }
-
-    .card-sub {
-      font-size: 12px;
-      color: #555;
-      margin-top: 4px;
-    }
-
-    .progress {
-      height: 3px;
-      background: #2a2a2a;
-      border-radius: 2px;
-      margin-top: 10px;
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
       overflow: hidden;
     }
 
-    .progress-fill {
-      height: 100%;
-      background: #7ecb7e;
-      border-radius: 2px;
-      transition: width 1s linear;
+    thead tr { background: #222; }
+
+    th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: normal;
+      border-bottom: 1px solid #2a2a2a;
     }
+
+    td {
+      padding: 10px 14px;
+      font-size: 14px;
+      color: #ccc;
+      border-bottom: 1px solid #1e1e1e;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #1f1f1f; }
+
+    td.player-id { color: #555; font-size: 13px; width: 60px; }
+    td.player-name { color: #eee; }
+
+    .empty-row td { text-align: center; color: #444; font-size: 13px; padding: 20px; }
 
     /* Status */
-    .status {
+    .status-bar {
       display: flex;
       align-items: center;
+      width: 100%;
+      max-width: 420px;
       gap: 8px;
-      font-size: 13px;
-      color: #555;
     }
 
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #7ecb7e;
-      flex-shrink: 0;
-    }
-
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #7ecb7e; flex-shrink: 0; }
     .dot.loading { background: #efaf27; animation: pulse 1s infinite; }
-    .dot.error   { background: #e24b4a; }
+    .dot.error { background: #e24b4a; }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.3; }
-    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    #status-text { font-size: 13px; color: #555; }
 
     .refresh-btn {
       background: none;
@@ -151,16 +156,7 @@
       cursor: pointer;
       margin-left: auto;
     }
-
     .refresh-btn:hover { background: #1a1a1a; color: #aaa; }
-
-    .status-bar {
-      display: flex;
-      align-items: center;
-      width: 100%;
-      max-width: 420px;
-      gap: 8px;
-    }
   </style>
 </head>
 <body>
@@ -191,6 +187,21 @@
       <div class="card-sub" id="card-players-sub">von 64 Slots</div>
       <div class="progress"><div class="progress-fill" id="prog-players" style="width:0%"></div></div>
     </div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-title">Online Spieler</div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Ingame Name</th>
+        </tr>
+      </thead>
+      <tbody id="player-table">
+        <tr class="empty-row"><td colspan="2">Lade Spieler...</td></tr>
+      </tbody>
+    </table>
   </div>
 
   <div class="status-bar">
@@ -230,8 +241,21 @@
 
     function setStatus(text, state) {
       document.getElementById('status-text').textContent = text;
-      const dot = document.getElementById('dot');
-      dot.className = 'dot ' + (state || '');
+      document.getElementById('dot').className = 'dot ' + (state || '');
+    }
+
+    function updateTable(players) {
+      const tbody = document.getElementById('player-table');
+      if (!players || players.length === 0) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="2">Keine Spieler online</td></tr>';
+        return;
+      }
+      tbody.innerHTML = players.map(p =>
+        `<tr>
+          <td class="player-id">${p.id}</td>
+          <td class="player-name">${p.name}</td>
+        </tr>`
+      ).join('');
     }
 
     async function fetchPlayers() {
@@ -240,15 +264,21 @@
         const res = await fetch('/api/players');
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
-        const count = Array.isArray(data) ? data.length : 0;
+        const players = Array.isArray(data) ? data : [];
+        const count = players.length;
+
         document.getElementById('lcd-players').textContent = count + '/128';
         document.getElementById('card-players').textContent = count;
         document.getElementById('card-players-sub').textContent = 'von 128 Slots belegt';
         document.getElementById('prog-players').style.width = Math.round((count / MAX_PLAYERS) * 100) + '%';
+
+        updateTable(players);
+
         const now = new Date();
         setStatus('Zuletzt: ' + fmt(now.getHours()) + ':' + fmt(now.getMinutes()) + ':' + fmt(now.getSeconds()), '');
       } catch (e) {
         setStatus('Fehler: ' + e.message, 'error');
+        updateTable([]);
       }
     }
 
