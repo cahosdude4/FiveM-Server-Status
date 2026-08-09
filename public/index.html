@@ -241,9 +241,9 @@
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         const count = Array.isArray(data) ? data.length : 0;
-        document.getElementById('lcd-players').textContent = count + '/64';
+        document.getElementById('lcd-players').textContent = count + '/128';
         document.getElementById('card-players').textContent = count;
-        document.getElementById('card-players-sub').textContent = 'von 64 Slots belegt';
+        document.getElementById('card-players-sub').textContent = 'von 128 Slots belegt';
         document.getElementById('prog-players').style.width = Math.round((count / MAX_PLAYERS) * 100) + '%';
         const now = new Date();
         setStatus('Zuletzt: ' + fmt(now.getHours()) + ':' + fmt(now.getMinutes()) + ':' + fmt(now.getSeconds()), '');
