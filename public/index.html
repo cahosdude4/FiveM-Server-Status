@@ -27,7 +27,6 @@
       text-transform: uppercase;
     }
 
-    /* LCD-Display */
     .lcd {
       background: #1a2a1a;
       border: 3px solid #2a2a2a;
@@ -54,7 +53,6 @@
     .lcd-label { color: #7ecb7e; font-size: 18px; letter-spacing: 0.05em; }
     .lcd-value { color: #9eff9e; font-size: 18px; font-weight: bold; letter-spacing: 0.1em; }
 
-    /* Info-Karten */
     .cards {
       display: flex;
       gap: 12px;
@@ -77,19 +75,23 @@
     .progress { height: 3px; background: #2a2a2a; border-radius: 2px; margin-top: 10px; overflow: hidden; }
     .progress-fill { height: 100%; background: #7ecb7e; border-radius: 2px; transition: width 1s linear; }
 
-    /* Spieler-Tabelle */
-    .table-wrap {
-      width: 100%;
-      max-width: 420px;
-    }
+    .table-wrap { width: 100%; max-width: 420px; }
 
-    .table-title {
-      font-size: 12px;
-      color: #666;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      margin-bottom: 8px;
+    .dropdown-btn {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      color: #7ecb7e;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      padding: 12px 16px;
+      text-align: left;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
     }
+    .dropdown-btn:hover { background: #1f1f1f; }
 
     table {
       width: 100%;
@@ -122,13 +124,10 @@
 
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #1f1f1f; }
-
     td.player-id { color: #555; font-size: 13px; width: 60px; }
     td.player-name { color: #eee; }
-
     .empty-row td { text-align: center; color: #444; font-size: 13px; padding: 20px; }
 
-    /* Status */
     .status-bar {
       display: flex;
       align-items: center;
@@ -170,7 +169,7 @@
     </div>
     <div class="lcd-row">
       <span class="lcd-label">Spieler:</span>
-      <span class="lcd-value" id="lcd-players">--/64</span>
+      <span class="lcd-value" id="lcd-players">--/128</span>
     </div>
   </div>
 
@@ -184,24 +183,28 @@
     <div class="card">
       <div class="card-label">Spieler online</div>
       <div class="card-value" id="card-players">--</div>
-      <div class="card-sub" id="card-players-sub">von 64 Slots</div>
+      <div class="card-sub" id="card-players-sub">von 128 Slots</div>
       <div class="progress"><div class="progress-fill" id="prog-players" style="width:0%"></div></div>
     </div>
   </div>
 
   <div class="table-wrap">
-    <div class="table-title">Online Spieler</div>
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Ingame Name</th>
-        </tr>
-      </thead>
-      <tbody id="player-table">
-        <tr class="empty-row"><td colspan="2">Lade Spieler...</td></tr>
-      </tbody>
-    </table>
+    <button class="dropdown-btn" onclick="toggleTable()">
+      ▶ Online Spieler <span id="dropdown-count">(--)</span>
+    </button>
+    <div id="dropdown-body" style="display:none;">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Ingame Name</th>
+          </tr>
+        </thead>
+        <tbody id="player-table">
+          <tr class="empty-row"><td colspan="2">Lade Spieler...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <div class="status-bar">
@@ -211,8 +214,10 @@
   </div>
 
   <script>
-    const RESTART_HOURS = [5, 16];
-    const MAX_PLAYERS = 128;
+    // ====== EINSTELLUNGEN ======
+    const RESTART_HOURS = [5, 16];   // Restart um 05:00 und 16:00 Uhr
+    const MAX_PLAYERS = 128;          // Maximale Spieleranzahl
+    // ==========================
 
     function getNextRestart() {
       const now = new Date();
@@ -235,13 +240,31 @@
       document.getElementById('lcd-restart').textContent = fmt(h) + 'h ' + fmt(m) + 'm';
       document.getElementById('card-restart').textContent = fmt(h) + 'h ' + fmt(m) + 'm';
       document.getElementById('card-restart-sub').textContent = 'um ' + fmt(hour) + ':00 Uhr';
-      const pct = Math.round(((6 * 3600 - secs) / (6 * 3600)) * 100);
+      // Zeitspanne zwischen Restarts: größte Lücke berechnen
+      const intervals = [];
+      const sorted = [...RESTART_HOURS].sort((a,b) => a-b);
+      for (let i = 0; i < sorted.length; i++) {
+        const next = sorted[(i+1) % sorted.length];
+        const diff = i < sorted.length-1 ? (next - sorted[i]) * 3600 : (24 - sorted[i] + sorted[0]) * 3600;
+        intervals.push(diff);
+      }
+      const maxInterval = Math.max(...intervals);
+      const pct = Math.round(((maxInterval - secs) / maxInterval) * 100);
       document.getElementById('prog-restart').style.width = Math.max(0, pct) + '%';
     }
 
     function setStatus(text, state) {
       document.getElementById('status-text').textContent = text;
       document.getElementById('dot').className = 'dot ' + (state || '');
+    }
+
+    function toggleTable() {
+      const body = document.getElementById('dropdown-body');
+      const open = body.style.display === 'block';
+      body.style.display = open ? 'none' : 'block';
+      const count = document.getElementById('card-players').textContent;
+      document.querySelector('.dropdown-btn').innerHTML =
+        (open ? '▶' : '▼') + ' Online Spieler <span id="dropdown-count">(' + count + ')</span>';
     }
 
     function updateTable(players) {
@@ -271,6 +294,7 @@
         document.getElementById('card-players').textContent = count;
         document.getElementById('card-players-sub').textContent = 'von 128 Slots belegt';
         document.getElementById('prog-players').style.width = Math.round((count / MAX_PLAYERS) * 100) + '%';
+        document.getElementById('dropdown-count').textContent = '(' + count + ')';
 
         updateTable(players);
 
@@ -280,6 +304,15 @@
         setStatus('Fehler: ' + e.message, 'error');
         updateTable([]);
       }
+    }
+
+    function toggleTable() {
+      const body = document.getElementById('dropdown-body');
+      const open = body.style.display === 'block';
+      body.style.display = open ? 'none' : 'block';
+      const count = document.getElementById('dropdown-count').textContent;
+      document.querySelector('.dropdown-btn').innerHTML =
+        (open ? '▶' : '▼') + ' Online Spieler <span id="dropdown-count">' + count + '</span>';
     }
 
     updateCountdown();
