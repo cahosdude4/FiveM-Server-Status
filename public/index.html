@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FiveM Server Status</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f0f0f;
+      color: #eee;
+      font-family: 'Courier New', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 18px;
+      color: #888;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    /* LCD-Display */
+    .lcd {
+      background: #1a2a1a;
+      border: 3px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 20px 28px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 0 30px rgba(100,200,100,0.08);
+    }
+
+    .lcd-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+    }
+
+    .lcd-row + .lcd-row {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #2a3a2a;
+    }
+
+    .lcd-label {
+      color: #7ecb7e;
+      font-size: 18px;
+      letter-spacing: 0.05em;
+    }
+
+    .lcd-value {
+      color: #9eff9e;
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 0.1em;
+    }
+
+    /* Info-Karten */
+    .cards {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .card {
+      flex: 1;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+
+    .card-label {
+      font-size: 11px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+
+    .card-value {
+      font-size: 26px;
+      font-weight: bold;
+      color: #eee;
+    }
+
+    .card-sub {
+      font-size: 12px;
+      color: #555;
+      margin-top: 4px;
+    }
+
+    .progress {
+      height: 3px;
+      background: #2a2a2a;
+      border-radius: 2px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #7ecb7e;
+      border-radius: 2px;
+      transition: width 1s linear;
+    }
+
+    /* Status */
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #555;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #7ecb7e;
+      flex-shrink: 0;
+    }
+
+    .dot.loading { background: #efaf27; animation: pulse 1s infinite; }
+    .dot.error   { background: #e24b4a; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    .refresh-btn {
+      background: none;
+      border: 1px solid #2a2a2a;
+      color: #666;
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      margin-left: auto;
+    }
+
+    .refresh-btn:hover { background: #1a1a1a; color: #aaa; }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      max-width: 420px;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>FiveM Server Status</h1>
+
+  <div class="lcd">
+    <div class="lcd-row">
+      <span class="lcd-label">Restart:</span>
+      <span class="lcd-value" id="lcd-restart">--h --m</span>
+    </div>
+    <div class="lcd-row">
+      <span class="lcd-label">Spieler:</span>
+      <span class="lcd-value" id="lcd-players">--/64</span>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Nächster Restart</div>
+      <div class="card-value" id="card-restart">--:--</div>
+      <div class="card-sub" id="card-restart-sub">Berechne...</div>
+      <div class="progress"><div class="progress-fill" id="prog-restart" style="width:0%"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Spieler online</div>
+      <div class="card-value" id="card-players">--</div>
+      <div class="card-sub" id="card-players-sub">von 64 Slots</div>
+      <div class="progress"><div class="progress-fill" id="prog-players" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <span class="dot loading" id="dot"></span>
+    <span id="status-text">Verbinde...</span>
+    <button class="refresh-btn" onclick="fetchPlayers()">↻ Reload</button>
+  </div>
+
+  <script>
+    const RESTART_HOURS = [0, 6, 12, 18];
+    const MAX_PLAYERS = 64;
+
+    function getNextRestart() {
+      const now = new Date();
+      const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+      let best = Infinity, bestHour = 0;
+      RESTART_HOURS.forEach(h => {
+        let diff = h * 3600 - nowSec;
+        if (diff <= 0) diff += 86400;
+        if (diff < best) { best = diff; bestHour = h; }
+      });
+      return { secs: best, hour: bestHour };
+    }
+
+    function fmt(n) { return String(n).padStart(2, '0'); }
+
+    function updateCountdown() {
+      const { secs, hour } = getNextRestart();
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      document.getElementById('lcd-restart').textContent = fmt(h) + 'h ' + fmt(m) + 'm';
+      document.getElementById('card-restart').textContent = fmt(h) + 'h ' + fmt(m) + 'm';
+      document.getElementById('card-restart-sub').textContent = 'um ' + fmt(hour) + ':00 Uhr';
+      const pct = Math.round(((6 * 3600 - secs) / (6 * 3600)) * 100);
+      document.getElementById('prog-restart').style.width = Math.max(0, pct) + '%';
+    }
+
+    function setStatus(text, state) {
+      document.getElementById('status-text').textContent = text;
+      const dot = document.getElementById('dot');
+      dot.className = 'dot ' + (state || '');
+    }
+
+    async function fetchPlayers() {
+      setStatus('Lade...', 'loading');
+      try {
+        const res = await fetch('/api/players');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        const count = Array.isArray(data) ? data.length : 0;
+        document.getElementById('lcd-players').textContent = count + '/64';
+        document.getElementById('card-players').textContent = count;
+        document.getElementById('card-players-sub').textContent = 'von 64 Slots belegt';
+        document.getElementById('prog-players').style.width = Math.round((count / MAX_PLAYERS) * 100) + '%';
+        const now = new Date();
+        setStatus('Zuletzt: ' + fmt(now.getHours()) + ':' + fmt(now.getMinutes()) + ':' + fmt(now.getSeconds()), '');
+      } catch (e) {
+        setStatus('Fehler: ' + e.message, 'error');
+      }
+    }
+
+    updateCountdown();
+    fetchPlayers();
+    setInterval(updateCountdown, 1000);
+    setInterval(fetchPlayers, 15000);
+  </script>
+</body>
+</html>
